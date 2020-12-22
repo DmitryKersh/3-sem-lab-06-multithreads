@@ -3,4 +3,19 @@
 #ifndef INCLUDE_HEADER_HPP_
 #define INCLUDE_HEADER_HPP_
 
+#include "../third-party/PicoSHA2/picosha2.h"
+#include "boost/log/trivial.hpp"
+#include "nlohmann/json.hpp"
+
+#include <iostream>
+#include <thread>
+#include <sstream>
+#include <mutex>
+#include <csignal>
+
+using nlohmann::json;
+using std::vector;
+using std::ostringstream;
+using std::mutex;
+
 #endif // INCLUDE_HEADER_HPP_
