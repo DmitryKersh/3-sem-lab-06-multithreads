@@ -6,7 +6,8 @@ mutex mtx;
 
 static ::std::atomic_bool shutdown = false;
 
-
+class core;
+class core;
 bool is_appropriate(const std::string& s, const std::string& suffix) {
   return s.substr(s.length() - suffix.length()) == suffix;
 }
@@ -28,14 +29,14 @@ std::string random_hex_string() {
   return s;
 }
 
-json find_prototype(const std::string& suffix) {
+optional<json> find_prototype(const std::string& suffix) {
   json j;
   std::string data_string = random_hex_string();
 
   while (!is_appropriate(picosha2::hash256_hex_string(data_string), suffix)) {
     data_string = random_hex_string();
     if (shutdown){
-      return  json("shutdown");
+      return std::nullopt;
     }
   }
 
@@ -44,37 +45,61 @@ json find_prototype(const std::string& suffix) {
   j["hash"] = picosha2::hash256_hex_string(data_string);
   j["data"] = data_string;
 
-  return j;
+  return { j };
 }
 
 void write_to_json(json& output, size_t thread_number){
-  json j = find_prototype("0000");
+  optional<json> j = find_prototype("0000");
   while (!shutdown) {
-    if (j == json("shutdown")) {
+    if (!j) {
       return;
     }
 
     mtx.lock();
-    j["thread"] = thread_number;
-    output.push_back(j);
+    (*j)["thread"] = thread_number;
+    output.push_back(*j);
     mtx.unlock();
     j = find_prototype("0000");
   }
 }
 
-
-int main(/*int argc, char* argv[]*/) {
+int main(int argc, char* args[]) {
   srand(time(0));
-  /*{
+  size_t maxthreads = std::thread::hardware_concurrency();
+  std::string result_file_name;
+  size_t arg1;
+  if (argc >= 2) {
+    try {
+      arg1 = ::std::stoul(args[1]);
+    } catch (::std::invalid_argument const& e) {
+      BOOST_LOG_TRIVIAL(error) << "Invalid arg1: expected positive number but got \"" << args[1] << "\""
+                               << ::std::endl;
+      return 1;
+    } catch (::std::out_of_range const& e) {
+      BOOST_LOG_TRIVIAL(error) << "Invalid arg1: value " << args[1] << " is too big" << ::std::endl;
+      return 1;
+    }
+    if (arg1 == 0) {
+      ::std::cerr << "Invalid arg1: expected positive number but got 0" << ::std::endl;
+      return 1;
+    }
+
+    if (argc >= 3) result_file_name = args[2];
+  } else {
+    arg1 = ::std::thread::hardware_concurrency();
+    if (arg1 == 0) arg1 = 1; // minimal value
+  }
+
+  {
     __sighandler_t sighandler = [](int const signal){
-      BOOST_LOG_TRIVIAL(info) << "Shutting down due to signal " << signal << std::endl;
+      //BOOST_LOG_TRIVIAL(info) << "Shutting down due to signal " << signal << std::endl;
+      shutdown = signal;
       shutdown = true;
     };
     sysv_signal(SIGINT, sighandler);
     sysv_signal(SIGSTOP, sighandler);
     sysv_signal(SIGTERM, sighandler);
-  }*/
-  size_t maxthreads = std::thread::hardware_concurrency();
+  }
 
   json result;
 
@@ -83,10 +108,12 @@ int main(/*int argc, char* argv[]*/) {
   for (size_t nthr = 0; nthr < maxthreads; nthr++){
     threads[nthr] = std::thread(write_to_json, std::ref(result), nthr);
   }
+/*
   while (clock() < 20'000'000){
     sleep(1);
   }
   shutdown = true;
+*/
   for (size_t nthr = 0; nthr < maxthreads; nthr++){
     threads[nthr].join();
   }

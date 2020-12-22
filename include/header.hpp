@@ -12,10 +12,12 @@
 #include <sstream>
 #include <mutex>
 #include <csignal>
+#include <optional>
 
 using nlohmann::json;
 using std::vector;
 using std::ostringstream;
 using std::mutex;
+using std::optional;
 
 #endif // INCLUDE_HEADER_HPP_
