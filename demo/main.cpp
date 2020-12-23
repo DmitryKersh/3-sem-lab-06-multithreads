@@ -13,8 +13,6 @@
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/utility/setup/file.hpp>
 #include <csignal>
-#include <fstream>
-#include <header.hpp>
 #include <iostream>
 #include <mutex>
 #include <nlohmann/json.hpp>
