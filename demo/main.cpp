@@ -39,10 +39,10 @@ void setup_logging() {
   logging::add_common_attributes();
 
   logging::core::get()->set_filter(logging::trivial::severity >=
-                                   logging::trivial::info);
+                                   logging::trivial::trace);
 
   logging::add_file_log(keywords::file_name = "logs/file_%3N.log",
-                        keywords::rotation_size = 10 * 1024,
+                        keywords::rotation_size = 5 * 1024 * 1024,
                         keywords::time_based_rotation =
                             sinks::file::rotation_at_time_point(12, 0, 0));
 }
@@ -68,12 +68,16 @@ std::string random_hex_string() {
   return s;
 }
 
-optional<json> find_prototype(const std::string& suffix) {
+optional<json> find_prototype(const std::string& suffix, int thread_num) {
   json j;
   std::string data_string = random_hex_string();
 
   while (!is_appropriate(picosha2::hash256_hex_string(data_string), suffix)) {
     data_string = random_hex_string();
+    BOOST_LOG_TRIVIAL(trace)
+        << "Data: " << data_string
+        << " Hash: " << picosha2::hash256_hex_string(data_string)
+        << " Thread: " << thread_num;
     if (shutdown) {
       return std::nullopt;
     }
@@ -90,8 +94,8 @@ optional<json> find_prototype(const std::string& suffix) {
   return {j};
 }
 
-void write_to_json(json& output) {
-  optional<json> j = find_prototype("0000");
+void write_to_json(json& output, int threadnum) {
+  optional<json> j = find_prototype("0000", threadnum);
   while (!shutdown) {
     if (!j) {
       return;
@@ -100,7 +104,7 @@ void write_to_json(json& output) {
     mtx.lock();
     output.push_back(*j);
     mtx.unlock();
-    j = find_prototype("0000");
+    j = find_prototype("0000", threadnum);
   }
 }
 
@@ -156,7 +160,7 @@ int main(int argc, char* args[]) {
   vector<std::thread> threads(maxthreads);
 
   for (size_t nthr = 0; nthr < maxthreads; nthr++) {
-    threads[nthr] = std::thread(write_to_json, std::ref(result));
+    threads[nthr] = std::thread(write_to_json, std::ref(result), nthr);
   }
 
   for (size_t nthr = 0; nthr < maxthreads; nthr++) {
